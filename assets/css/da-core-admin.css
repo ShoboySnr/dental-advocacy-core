@@ -1,0 +1,75 @@
+/**
+Preloader
+ */
+.da-core-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #fff;
+    opacity: 0.5;
+}
+
+.da-core-loader-image {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 30px;
+    height: 30px;
+    background-color: #96588a;
+    border-radius: 50%;
+    -webkit-animation: spin 1s ease-in-out infinite;
+    animation: spin 1s ease-in-out infinite;
+    opacity: 1 !important;
+}
+
+.da-core-loader-image .da-core-loader-image-inner {
+    position: relative;
+    width: 30px;
+    height: 30px;
+}
+
+.da-core-loader-image .da-core-loader-image-inner:after {
+    position: absolute;
+    content: '';
+    background-color: #fff;
+    width: 14px;
+    height: 14px;
+    top: 2px;
+    left: 0;
+    right: 0;
+    margin: auto;
+    border-radius: 50%;
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg)
+    }
+}
+
+
+/**
+Products To Cart Styles
+ **/
+#dental-advocacy-products-to-cart .da-core-title-and-description {
+    padding-bottom: 30px;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+#dental-advocacy-products-to-cart .da-core-title-and-description .da-core-form {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-gap: 20px;
+    padding-bottom: 20px;
+}
+#dental-advocacy-products-to-cart .da-core-title-and-description .da-core-form label {
+    display: block;
+    font-size: 12px;
+}
+
+#dental-advocacy-products-to-cart .da-core-title-and-description .da-core-form input {
+    width: 100%;
+}

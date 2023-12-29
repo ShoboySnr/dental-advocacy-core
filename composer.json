@@ -1,0 +1,38 @@
+{
+  "name": "shoboysnr/dental-advocacy-core",
+  "description": "Core Lib for Dental Advocacy",
+  "type": "wordpress-plugin",
+  "require": {
+    "composer/installers": "~1.0",
+    "soundasleep/html2text": "~0.5",
+    "pelago/emogrifier": "3.1.0",
+    "nesbot/carbon": "^1.32",
+    "symfony/polyfill-mbstring": "1.19.0"
+  },
+  "_comment": "our league/csv version requires 7.0.10 and higher. explicitly requiring symfony/polyfill-mbstring 1.19.0 because wp.org svn linter doesn't support PHP 8 and fails to parse https://github.com/symfony/polyfill/blob/main/src/Mbstring/bootstrap80.php",
+  "autoload": {
+    "psr-4": {
+      "DentalAdvocacyCore\\Core\\": "src/"
+    },
+    "files": [
+      "src/Functions/functions.php"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "DentalAdvocacyCore\\Tests\\Core\\": "tests/"
+    }
+  },
+  "config": {
+    "platform": {
+      "php": "7.4"
+    },
+    "allow-plugins": {
+      "composer/installers": true,
+      "kylekatarnls/update-helper": true
+    }
+  },
+  "scripts": {
+    "test": "phpunit"
+  }
+}
