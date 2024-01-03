@@ -73,3 +73,58 @@ Products To Cart Styles
 #dental-advocacy-products-to-cart .da-core-title-and-description .da-core-form input {
     width: 100%;
 }
+
+#da-core-form-feedback .da-core-message {
+    margin: 10px 0;
+    padding: 10px;
+    font-size: 14px;
+    color: #ffffff;
+}
+
+#da-core-form-feedback .da-core-message a {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+#da-core-form-feedback .da-core-message.da-core-message-success {
+    background-color: seagreen;
+}
+
+#da-core-form-feedback .da-core-message.da-core-message-error {
+    background-color: red;
+}
+
+.da-core-overview-table {
+    margin-top: 10px;
+}
+
+.da-core-overview-table caption {
+    text-align: left;
+    padding: 8px 10px;
+}
+
+.da-core-overview-table caption span {
+    position: relative;
+    padding-right: 30px;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.da-core-overview-table caption span:after {
+    display: inline-block;
+    font-family: "dashicons";
+    content: "\f347";
+    font-size: 20px;
+    line-height: 20px;
+    vertical-align: top;
+    position: absolute;
+    right: 5px;
+}
+
+.da-core-overview-table tbody tr .da-core-metadata {
+    margin-bottom: 5px;
+}
+
+.da-core-overview-table tbody tr .da-core-metadata span {
+    font-weight: bold;
+}

@@ -21,7 +21,7 @@ product_id int(11) NOT NULL,
 variation_id int(11) DEFAULT NULL,
 imported_to_cart tinyint(1) DEFAULT '0' NOT NULL,
 ordered tinyint(1) DEFAULT '0' NOT NULL,
-quantity int(11) DEFAULT NULL,
+quantity int(11) DEFAULT '1' NOT NULL,
 metadata varchar(255) DEFAULT NULL,
 PRIMARY KEY  (id)
 ) $charset_collate;";

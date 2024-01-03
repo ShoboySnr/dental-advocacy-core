@@ -20,20 +20,22 @@
         dental_advocacy_core_admin.hide_loading_style(true);
 
         formData = formData+ '&da-core-prepare-products-to-cart-submit=true';
+        $('#da-core-form-feedback').html('');
 
-        jQuery.ajax({
+        $.ajax({
             url: atcaa_admin_ajax_object.ajax_url,
             type: 'POST',
             data: formData
         })
         .done(function(response) {
-            jQuery(" #da-core-form-feedback ").html(response);
+            $(" #da-core-form-feedback ").html(response.message);
             dental_advocacy_core_admin.hide_loading_style();
         })
         .fail(function(error) {
-            ental_advocacy_core_admin.hide_loading_style();
-            jQuery(" #da-core-form-feedback ").html( "<div class='da-core-message da-core-message-error'>Something went wrong.</div>" );
-            console.log(error);
+            dental_advocacy_core_admin.hide_loading_style();
+            $("#da-core-form-feedback ").html(error.responseJSON.message);
+            // $("#da-core-form-feedback ").html( "<div class='da-core-message da-core-message-error'>Something went wrong.</div>" );
+            // console.log(error);
         })
 
     }
