@@ -30,7 +30,7 @@ function da_core_check_field_length($fieldsMaxLengths)
 {
 	$error_fields = array();
 	foreach ($fieldsMaxLengths as $fieldname => $maxlength) {
-		if (strlen(atcaa_prepare($_POST[$fieldname])) > $maxlength) {
+		if (strlen(da_core_prepare($_POST[$fieldname])) > $maxlength) {
 			$error_fields[] = $fieldname;
 		}
 	}

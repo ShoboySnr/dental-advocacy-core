@@ -128,3 +128,7 @@ Products To Cart Styles
 .da-core-overview-table tbody tr .da-core-metadata span {
     font-weight: bold;
 }
+
+.da-core-already-in-cart {
+    color: red;
+}

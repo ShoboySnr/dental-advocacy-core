@@ -1,0 +1,5 @@
+table.woocommerce-cart-form__contents tr td.product-name dl.variation dd {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 10px;
+}

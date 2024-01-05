@@ -5,10 +5,30 @@ namespace DentalAdvocacyCore\Core\WooCommerce\ProductsToCart;
 class ProductsToCart {
 	
 	public function __construct() {
-	  add_action('init', [$this, 'products_to_cart_action_callback']);
-	  add_action('wp_ajax_da_core_get_customer_names', [$this, 'suggests_users']);
-	  add_action('wp_ajax_da_core_get_products', [$this, 'suggests_products']);
-	  add_action('wp_ajax_da_core_prepare_products_to_cart', [$this, 'products_to_cart_action_callback']);
+	  
+    add_action('init', [$this, 'products_to_cart_action_callback']);
+	  
+    add_action('wp_ajax_da_core_get_customer_names', [$this, 'suggests_users']);
+	  
+    add_action('wp_ajax_da_core_get_products', [$this, 'suggests_products']);
+    
+    add_action('wp_ajax_da_core_prepare_products_to_cart', [$this, 'products_to_cart_action_callback']);
+    
+    add_action('wp_ajax_da_core_modify_meta_details', [$this, 'modify_meta_details_action_callback']);
+    
+    add_action('wp_ajax_da_core_cancel_meta_details', [$this, 'cancel_meta_details_action_callback']);
+    
+    add_action('wp_ajax_da_core_delete_product_carts_entry', [$this, 'delete_product_carts_entry_action_callback']);
+    
+    add_action( 'wp', [$this, 'da_core_add_to_cart'] );
+	  
+	  add_action('save_post_shop_order', [$this, 'delete_from_prepared_items_table'] );
+	  
+	  add_filter( 'woocommerce_get_item_data', [$this, 'get_item_data'], 10, 2 );
+	  
+	  add_action( 'woocommerce_checkout_create_order_line_item', [$this, 'checkout_create_order_line_item'], 10, 4 );
+	  
+	  add_action('wp_ajax_da_core_get_meta_details_form', [$this, 'get_meta_details_form']);
 	}
   
   public function products_to_cart_action_callback()
@@ -107,6 +127,7 @@ class ProductsToCart {
       // json encode vitals
       $vitals = json_encode($vitals);
       if(empty($quantity)) $quantity = 1;
+
       
       if( empty( $error_string ) ) {
         
@@ -114,9 +135,7 @@ class ProductsToCart {
 	        $_product = wc_get_product( $product_id );
           foreach ($user_names as $user_id) {
             $user = get_user_by('ID', $user_id);
-	          $select_sql = "SELECT * FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE `user_id` = %s AND `product_id` = %s LIMIT 1";
-	          $select_sql = $wpdb->prepare($select_sql, $user_id, $product_id );
-	          $find_prev = $wpdb->get_results($select_sql);
+            $find_prev = $this->get_product_to_cart_detail($user_id, $product_id);
             
             
             if(empty( $find_prev) ) {
@@ -126,24 +145,108 @@ class ProductsToCart {
 	
 	            if ($wpdb->last_error) {
 	              $wpdb_error_string = "<div class='da-core-message da-core-message-error'>" . __('Could not connect: ', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . $wpdb->last_error . "</div>";
-	              wp_send_json(['success' => false, 'message' => $wpdb_error_string ], 400);
+	              wp_send_json(['success' => false, 'message' => $wpdb_error_string ]);
               }
             } else {
 	            $exist_error_string = "<div class='da-core-message da-core-message-error'>" . __('This product - '.$_product->get_title(). ' is already added to this user - '.$user->display_name , DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . $wpdb->last_error . "</div>";
-	            wp_send_json(['success' => false, 'message' => $exist_error_string ], 400);
+	            wp_send_json(['success' => false, 'message' => $exist_error_string ]);
             }
           }
         }
 	
-        $success_string = "<div class='da-core-message da-core-message-success'>". __(' Cart will be updated on login. ', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . "<a href='" . admin_url( 'admin.php?page=da-core-add-to-cart') . "'>" . __('Refresh this page', ATCAA_TEXT_DOMAIN) . "</a></div>";
+        $success_string = "<div class='da-core-message da-core-message-success'>". __(' Cart will be updated on login. ', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . "<a href='" . admin_url( 'admin.php?page=da-core-add-to-cart') . "'>" . __('Refresh this page', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . "</a></div>";
 	      wp_send_json(['success' => true, 'message' => $success_string ]);
        
       } else {
-        wp_send_json(['success' => false, 'message' => $error_string ], 400);
+        wp_send_json(['success' => false, 'message' => $error_string ]);
       }
 	    wp_die();
     }
   }
+  
+  
+  public function modify_meta_details_action_callback() {
+	
+	  if(isset($_POST['modify_meta_details_nonce']) && wp_verify_nonce($_POST['modify_meta_details_nonce'], 'modify-meta-data-nonce')) {
+      global $wpdb;
+      
+      $vitals = $_POST['vitals'];
+      $user_id = $_POST['user_id'];
+      $product_id = $_POST['product_id'];
+      
+      //get the product to cart details where user_id and product_id
+	    $results = $this->get_product_to_cart_detail($user_id, $product_id);
+      
+      if(empty($results)) {
+	      $exist_error_string = "<div class='da-core-message da-core-message-error'>" . __('Product cart details not found for this record, refresh and try again.', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . "</div>";
+	      wp_send_json(['success' => false, 'message' => $exist_error_string ]);
+      }
+	  
+	    $query = "UPDATE {$wpdb->prefix}da_core_products_to_cart_items SET `metadata` = %s WHERE `product_id` = %s AND `user_id` = %s";
+	    $query = $wpdb->prepare($query, json_encode($vitals), $product_id, $user_id);
+	    $wpdb->get_results($query);
+	  
+	    $success_string = $this->get_products_cart_meta_html($vitals);
+	  
+	    $success_string .= '<hr /><button class="button button-secondary da-core-metadata-update-button" data-product-id="'. $product_id. '" data-user-id="'. $user_id. '" data-modify-meta-data-nonce="'. wp_create_nonce('modify-meta-data-nonce') . '">Modify</button>';
+      
+      
+      wp_send_json(['success' => true, 'message' => $success_string ]);
+      
+    }
+    
+    wp_die();
+  }
+	
+	/**
+	 * Cancel meta details form and show the meta listing
+	 */
+  public function cancel_meta_details_action_callback() {
+	
+	  $user_id = $_POST['user_id'];
+	  $product_id = $_POST['product_id'];
+	
+	  //get the product to cart details where user_id and product_id
+	  $results = $this->get_product_to_cart_detail($user_id, $product_id);
+    
+    if(empty($results[0])) {
+	    $exist_error_string = "<div class='da-core-message da-core-message-error'>" . __('Product cart details not found for this record, refresh and try again.', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . "</div>";
+	    wp_send_json(['success' => false, 'message' => $exist_error_string ]);
+    }
+   
+	  $success_string = $this->get_products_cart_meta_html(json_decode($results[0]->metadata));
+	
+	  $success_string .= '<hr /><button class="button button-secondary da-core-metadata-update-button" data-product-id="'. $product_id. '" data-user-id="'. $user_id. '" data-modify-meta-data-nonce="'. wp_create_nonce('modify-meta-data-nonce') . '">Modify</button>';
+   
+	  wp_send_json(['success' => true, 'message' =>  $success_string ]);
+  }
+  
+  
+  public function delete_product_carts_entry_action_callback() {
+    
+    if(isset($_POST['product_carts_entry_delete_nonce']) && wp_verify_nonce($_POST['product_carts_entry_delete_nonce'], 'product-carts-entry-delete-data-nonce')) {
+	    global $wpdb;
+      
+      $user_id = $_POST['user_id'];
+	    $product_id = $_POST['product_id'];
+	
+	    //get the product to cart details where user_id and product_id
+	    $results = $this->get_product_to_cart_detail($user_id, $product_id);
+	
+	    if(empty($results[0])) {
+		    $exist_error_string = "<div class='da-core-message da-core-message-error'>" . __('Product cart details not found for this record, refresh and try again.', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN) . "</div>";
+		    wp_send_json(['success' => false, 'message' => $exist_error_string ]);
+	    }
+	
+	
+	    $query = "DELETE FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE product_id = %s AND user_id = %s";
+      $query = $wpdb->prepare($query, $product_id, $user_id);
+	    $wpdb->get_results($query);
+	
+	    wp_send_json(['success' => true, 'message' => 'This specific product cart is successfully deleted' ]);
+    }
+  }
+  
 	
 	public function admin_menu_add_to_cart_callback() {
 		
@@ -186,9 +289,8 @@ class ProductsToCart {
               </div>
               <div class="">
                 <label for="quantity">Enter Quantity</label>
-                <input  type='number' value="1" name='quantity' id='quantity' placeholder="<?php echo __('Quantity', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN); ?>" min="1" />
+                <input  type='number' value="1" name='quantity' id='quantity' placeholder="<?php echo __('Quantity', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN); ?>" min="1" required/>
               </div>
-              <input  type='hidden' name='product_id' value=""/>
               <input  type='hidden' name='action' value='da_core_prepare_products_to_cart' />
 	            <?php
 		            foreach ($vitals as $vital) {
@@ -219,7 +321,133 @@ class ProductsToCart {
 		<?php
     $this->view_add_to_cart_admin_overview();
 	}
+  
+  public function da_core_add_to_cart()
+  {
+    if ( ! is_admin() ) {
+      
+      global $wpdb;
+      
+      $current_user = wp_get_current_user();
+      if(empty($current_user)) return;
+      
+      $query = "SELECT * FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE `user_id` = %s AND `imported_to_cart` = %s";
+      $query = $wpdb->prepare($query, $current_user->ID, 0);
+      $results = $wpdb->get_results($query);
+      
+      if(!empty($results)) {
+        foreach ($results as $result) {
+          $vitals = json_decode($result->metadata);
+	        $add_to_cart = WC()->cart->add_to_cart($result->product_id, $result->quantity, $result->variation_id, [], ['vitals' => $vitals]);
+          
+          if(!empty($add_to_cart) ) {
+            // update the add to cart value to 1
+            $query = "UPDATE {$wpdb->prefix}da_core_products_to_cart_items SET `imported_to_cart` = %s WHERE `product_id` = %s AND `user_id` = %s";
+            $query = $wpdb->prepare($query, 1, $result->product_id, $current_user->ID);
+            $wpdb->get_results($query);
+          }
+        }
+      }
+      
+    }
+  }
 	
+	/**
+	 * Delete the cart items in the table after checking out
+   *
+	 */
+  public function delete_from_prepared_items_table() {
+	  global $wpdb;
+	
+	  $current_user = wp_get_current_user();
+	  if ( empty($current_user ) ) return;
+	
+	  $query = "DELETE FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE imported_to_cart = '1' AND user_id = '$current_user->ID'";
+	  $wpdb->get_results($query);
+  }
+  
+  public function get_product_to_cart_detail($user_id, $product_id) {
+    global $wpdb;
+    
+	  $query = "SELECT * FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE `user_id` = %s AND `product_id` = %s LIMIT 1";
+	  $query = $wpdb->prepare($query, $user_id, $product_id );
+	  $results = $wpdb->get_results($query);
+    
+    return $results;
+  }
+	
+	
+	/**
+	 * @param $vitals
+	 *
+	 * @return string
+	 */
+  public function get_products_cart_meta_html($vitals) {
+	  $meta_html = '';
+    foreach ($vitals as $key => $data) {
+		  if ( ! empty( $data ) ) {
+			  $my_vitals = get_posts( [
+				  'name'        => $key,
+				  'numberposts' => 1,
+				  'post_type'   => 'da-core-vitals'
+			  ] );
+			
+			  if ( ! empty( $my_vitals[0] ) ) {
+		    $meta_html .= "<div class='da-core-metadata'><span>" . $my_vitals[0]->post_title . ":</span> " . $data . "</div>";
+			  }
+		  }
+	  }
+    
+    return $meta_html;
+  }
+	
+	/**
+	 * Display custom item data in the cart
+	 */
+  public function get_item_data( $item_data, $cart_item_data )
+  {
+	  if ( isset( $cart_item_data['vitals'] ) ) {
+      global $wpdb;
+      
+      $vitals = $cart_item_data['vitals'];
+      foreach ($vitals as $key => $vital) {
+        if(!empty($vital)) {
+	        $vital_name = $this->get_core_vitals_name($key);
+          if(!empty($vital_name[0])) {
+	          $item_data[] = [
+		          'key'   => $vital_name[0]->post_title,
+		          'name'   => $vital_name[0]->post_title,
+		          'value' => wc_clean( $vital ),
+	          ];
+          }
+        }
+      }
+    }
+    
+    return $item_data;
+  }
+	
+	
+	/**
+	 * Add custom meta to order
+	 */
+  public function checkout_create_order_line_item(  $item, $cart_item_key, $values, $order ) {
+    if(isset( $values['vitals'] )) {
+	    $vitals = $values['vitals'];
+	    
+      foreach ($vitals as $key => $vital) {
+	      $vital_name = $this->get_core_vitals_name($key);
+	      if(!empty($vital_name[0])) {
+	        $item->add_meta_data(
+	          $vital_name[0]->post_title,
+		        $vital,
+		        true
+	        );
+        }
+      }
+    }
+  }
+  
 	/**
 	 *
 	 */
@@ -231,7 +459,8 @@ class ProductsToCart {
     <p>These items will be added to user's cart when he logs in. Until then, you can remove items added by mistake.
       After user place order, items for that user will be automatically removed from this page.</p>
 
-    <div id='da-core-overview-feedback'></div>
+    <div id='da-core-overview-feedback' class="da-core-overview-loading-overlay"></div>
+    <div class='da-core-overview-loader-image'></div>
     
       <?php
           $user_ids = $this->query_add_to_cart_users();
@@ -267,7 +496,7 @@ class ProductsToCart {
                 $product = wc_get_product($cart_detail->product_id);
                 $metadata = json_decode($cart_detail->metadata);
           ?>
-          <tr class="entry-id-<?php echo $cart_detail->id; ?>">
+          <tr class="entry-id-<?php echo $cart_detail->id; ?>" data-product-id="<?php echo $cart_detail->product_id; ?>" data-user-id="<?php echo $id; ?>">
               <td><?php echo $row_number ?></td>
               <td><?php echo $product->get_title(); ?></td>
             <td><?php echo $cart_detail->qntty; ?></td>
@@ -275,22 +504,28 @@ class ProductsToCart {
             <td>
                 <?php
                     foreach ($metadata as $key => $data) {
-	                    $my_vitals = get_posts([
-		                    'name'        => $key,
-		                    'numberposts'   => 1,
-		                    'post_type'     => 'da-core-vitals'
-	                    ]);
-                      
-                      if(!empty($my_vitals[0])) echo "<div class='da-core-metadata'><span>". $my_vitals[0]->post_title. ":</span> ". $data . "</div>";
+	                    if ( ! empty( $data ) ) {
+                        $my_vitals = get_posts( [
+                          'name'        => $key,
+                          'numberposts' => 1,
+                          'post_type'   => 'da-core-vitals'
+                        ] );
+    
+                        if ( ! empty( $my_vitals[0] ) ) {
+                          echo "<div class='da-core-metadata'><span>" . $my_vitals[0]->post_title . ":</span> " . $data . "</div>";
+                        }
+                      }
                     }
                 ?>
+                <hr />
+                <button class="button button-secondary da-core-metadata-update-button" data-product-id="<?php echo $cart_detail->product_id; ?>" data-user-id="<?php echo $cart_detail->user_id; ?>" data-modify-meta-data-nonce="<?php echo wp_create_nonce('modify-meta-data-nonce') ?>">Modify</button>
               
             </td>
             <td>
                 <?php
                     if($cart_detail->imported_to_cart == 0) {
                       ?>
-                        <button class="button button-primary da-core-entry-delete-button" value="<?php echo $cart_detail->id; ?>">Delete</button>
+                        <button class="button button-primary da-core-entry-delete-button" value="<?php echo $cart_detail->id; ?>" data-nonce="<?php echo wp_create_nonce('product-carts-entry-delete-data-nonce') ?>">Delete</button>
                       <?php
                     } else {
                       ?>
@@ -316,7 +551,6 @@ class ProductsToCart {
   <?php
   }
   
-  
   public function query_add_to_cart_users() {
     global $wpdb;
 	  $query = "SELECT DISTINCT user_id FROM {$wpdb->prefix}da_core_products_to_cart_items";
@@ -325,19 +559,76 @@ class ProductsToCart {
     return $user_ids;
   }
   
+  public function get_core_vitals_name($post_name) {
+	  $my_vitals = get_posts( [
+	    'name'        => $post_name,
+	    'numberposts' => 1,
+	    'post_type'   => 'da-core-vitals'
+    ] );
+    
+    return $my_vitals;
+  }
   
   public function get_add_to_carts_details_by_user_id($user_id) {
     global $wpdb;
 	
-	  $query = "SELECT  id,product_id,imported_to_cart, metadata, SUM(quantity) qntty FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE user_id = $user_id GROUP BY id";
+	  $query = "SELECT  id,user_id, product_id,imported_to_cart, metadata, SUM(quantity) qntty FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE user_id = $user_id GROUP BY id";
 	  $details_per_user_id = $wpdb->get_results($query);
     
     return $details_per_user_id;
-    
-    
   }
-  
-  
+	
+	/**
+	 * Get the meta details form
+   *
+	 */
+	public function get_meta_details_form()
+	{
+    if(isset($_POST['modify_meta_details_nonce']) && wp_verify_nonce($_POST['modify_meta_details_nonce'], 'modify-meta-data-nonce')) {
+      $product_id = sanitize_text_field($_POST['product_id']);
+      $user_id = sanitize_text_field($_POST['user_id']);
+	
+	    $vitals = get_posts([
+		    'numberposts'   => -1,
+		    'post_type'     => 'da-core-vitals'
+	    ]);
+      
+      $get_vitals = $this->get_product_to_cart_detail($user_id, $product_id);
+      $metadata = isset($get_vitals[0]) ? json_decode($get_vitals[0]->metadata) : [];
+
+      ob_start();
+      ?>
+        <form action="post" class="dental-advocacy-modify-meta-details-form" id="dental-advocacy-modify-meta-details-form">
+	        <?php
+		        foreach ($vitals as $vital) {
+              $post_name = $vital->post_name;
+              $vital_value = $metadata->$post_name ?? '';
+			        ?>
+                  <div class="">
+                    <label for="<?php echo $vital->post_name. '_'. $vital->ID; ?>"><?php echo $vital->post_title; ?></label>
+                    <input value="<?php echo $vital_value; ?>"  type='text' name='vitals[<?php echo $vital->post_name; ?>]' id='<?php echo $vital->post_name. '_'. $vital->ID; ?>' placeholder="<?php echo __('Enter value', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN); ?> " />
+                  </div>
+		
+		        <?php } ?>
+            <input name="product_id" value="<?php echo $product_id; ?>" type="hidden" />
+            <input name="user_id" value="<?php echo $user_id; ?>" type="hidden" />
+            <input name="action" value="da_core_modify_meta_details" type="hidden" />
+            <?php wp_nonce_field('modify-meta-data-nonce', 'modify_meta_details_nonce'); ?>
+            <br />
+            <button type="submit" name="da-core-modify-meta-details-submit" class="button button-primary">Save</button>
+            <button type="button" class="button button-secondary da-core-cancel-meta-details-submit" data-user-id="<?php echo $user_id; ?>" data-product-id="<?php echo $product_id; ?>">Cancel</button>
+        </form>
+      <?php
+      
+      $output_string = ob_get_clean();
+	
+	    wp_send_json(['success' => false, 'message' => $output_string ]);
+    }
+	}
+	
+	/**
+	 * Suggests Users based on search criteria
+	 */
   public function suggests_users() {
 	  global $wpdb;
    
@@ -360,11 +651,15 @@ class ProductsToCart {
 	  wp_die();
   }
 	
+	
+	/**
+	 * Suggests products based on search criteria
+	 */
 	public function suggests_products() {
 		global $wpdb;
 		
 		$product_id = $wpdb->esc_like(stripslashes($_POST['product_id'])) . '%'; // escape for use in LIKE statement
-		$query = "SELECT * FROM {$wpdb->posts} WHERE ( post_title LIKE %s OR ID LIKE %s) AND post_type = 'product' ORDER BY post_title ASC";
+		$query = "SELECT * FROM {$wpdb->posts} WHERE ( post_title LIKE %s OR ID LIKE %s) AND post_type = 'product' AND post_status = 'publish' ORDER BY post_title ASC";
 		
 		$query = $wpdb->prepare($query, $product_id, $product_id);
 		

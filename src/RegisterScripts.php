@@ -6,10 +6,11 @@ class RegisterScripts {
 	
 	public function __construct()
 	{
-		add_action('admin_enqueue_scripts', [$this, 'da_core_load_scripts'] );
+		add_action('admin_enqueue_scripts', [$this, 'da_core_load_admin_scripts'] );
+		add_action('wp_enqueue_scripts', [$this, 'da_core_load_frontend_scripts'] );
 	}
 	
-	function da_core_load_scripts()
+	function da_core_load_admin_scripts()
 	{
 		wp_enqueue_style( 'select2-css', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css', array());
 		
@@ -20,6 +21,11 @@ class RegisterScripts {
 		wp_enqueue_script( 'select2-js', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js', array('jquery'));
 		
 		wp_localize_script('da-core-admin-js', 'da_core_admin_ajax_object', array('ajax_url' => admin_url('admin-ajax.php')));
+	}
+	
+	public function da_core_load_frontend_scripts()
+	{
+		wp_enqueue_style('da-core-admin-css', DENTAL_ADVOCACY_CORE_SYSTEM_ASSETS_URL.'/css/da-core-user.css');
 	}
 	
 
