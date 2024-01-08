@@ -171,8 +171,8 @@ class ProductsToCart {
       global $wpdb;
       
       $vitals = $_POST['vitals'];
-      $user_id = $_POST['user_id'];
-      $product_id = $_POST['product_id'];
+      $user_id = sanitize_text_field($_POST['user_id']);
+      $product_id = sanitize_text_field($_POST['product_id']);
       
       //get the product to cart details where user_id and product_id
 	    $results = $this->get_product_to_cart_detail($user_id, $product_id);
@@ -182,14 +182,21 @@ class ProductsToCart {
 	      wp_send_json(['success' => false, 'message' => $exist_error_string ]);
       }
 	  
-	    $query = "UPDATE {$wpdb->prefix}da_core_products_to_cart_items SET `metadata` = %s WHERE `product_id` = %s AND `user_id` = %s";
-	    $query = $wpdb->prepare($query, json_encode($vitals), $product_id, $user_id);
+	    $query = "UPDATE {$wpdb->prefix}da_core_products_to_cart_items SET `metadata` = %s  WHERE `product_id` = %s AND `user_id` = %s";
+	    $query = $wpdb->prepare($query, json_encode($vitals), $product_id, $user_id); // 2 signifies that changes has been made to the cart, hence rerun the cart hook function when a user logs in
 	    $wpdb->get_results($query);
+      
+      //update all the cart items to imported_to_cart to 2
+      $get_results = $this->get_add_to_carts_details_by_user_id($user_id);
+      if(!empty($get_results)) {
+	      $query = "UPDATE {$wpdb->prefix}da_core_products_to_cart_items SET `imported_to_cart` = %s  WHERE `user_id` = %s";
+	      $query = $wpdb->prepare($query, 2, $user_id); // 2 signifies that changes has been made to the cart, hence rerun the cart hook function when a user logs in
+	      $wpdb->get_results($query);
+      }
 	  
 	    $success_string = $this->get_products_cart_meta_html($vitals);
 	  
 	    $success_string .= '<hr /><button class="button button-secondary da-core-metadata-update-button" data-product-id="'. $product_id. '" data-user-id="'. $user_id. '" data-modify-meta-data-nonce="'. wp_create_nonce('modify-meta-data-nonce') . '">Modify</button>';
-      
       
       wp_send_json(['success' => true, 'message' => $success_string ]);
       
@@ -331,14 +338,22 @@ class ProductsToCart {
       $current_user = wp_get_current_user();
       if(empty($current_user)) return;
       
-      $query = "SELECT * FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE `user_id` = %s AND `imported_to_cart` = %s";
-      $query = $wpdb->prepare($query, $current_user->ID, 0);
+      $query = "SELECT * FROM {$wpdb->prefix}da_core_products_to_cart_items WHERE `user_id` = %s AND ( `imported_to_cart` = %s OR `imported_to_cart` = %s)";
+      $query = $wpdb->prepare($query, $current_user->ID, 0, 2);
       $results = $wpdb->get_results($query);
+      
+      // check if there are existing products in cart -  to handle when there is updates, remove all the carts and add them back later
+      $get_carts = WC()->cart->get_cart();
+      if(!empty($get_carts)) {
+	      foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+          WC()->cart->remove_cart_item( $cart_item_key );
+	      }
+      }
       
       if(!empty($results)) {
         foreach ($results as $result) {
-          $vitals = json_decode($result->metadata);
-	        $add_to_cart = WC()->cart->add_to_cart($result->product_id, $result->quantity, $result->variation_id, [], ['vitals' => $vitals]);
+	        $vitals = json_decode($result->metadata);
+          $add_to_cart = WC()->cart->add_to_cart($result->product_id, $result->quantity, $result->variation_id, [], ['vitals' => $vitals]);
           
           if(!empty($add_to_cart) ) {
             // update the add to cart value to 1
@@ -527,10 +542,14 @@ class ProductsToCart {
                       ?>
                         <button class="button button-primary da-core-entry-delete-button" value="<?php echo $cart_detail->id; ?>" data-nonce="<?php echo wp_create_nonce('product-carts-entry-delete-data-nonce') ?>">Delete</button>
                       <?php
-                    } else {
+                    } else if ($cart_detail->imported_to_cart == 2) {
                       ?>
-                        <span class="da-core-already-in-cart">Already added to cart</span>
+                        <span class="da-core-already-in-cart">Cart items changed, will be updated when user logs in</span>
                       <?php
+                    } else {
+	                    ?>
+                      <span class="da-core-already-in-cart">Already added to cart</span>
+	                    <?php
                     }
                 ?>
             </td>

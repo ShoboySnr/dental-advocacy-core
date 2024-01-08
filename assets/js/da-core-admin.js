@@ -64,8 +64,9 @@
                 if(response.success == true) {
                     _this.parents('td').html(response.message);
                 } else {
-                    alert(response.message);
-                    window.location.reload();
+                    // alert(response.message);
+                    console.log(response.messaage);
+                    // window.location.reload();
                 }
                 dental_advocacy_core_admin.hide_overview_loading_style();
             })
