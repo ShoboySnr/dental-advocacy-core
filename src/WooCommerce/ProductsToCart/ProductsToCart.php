@@ -342,15 +342,15 @@ class ProductsToCart {
       $query = $wpdb->prepare($query, $current_user->ID, 0, 2);
       $results = $wpdb->get_results($query);
       
-      // check if there are existing products in cart -  to handle when there is updates, remove all the carts and add them back later
-      $get_carts = WC()->cart->get_cart();
-      if(!empty($get_carts)) {
-	      foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
-          WC()->cart->remove_cart_item( $cart_item_key );
-	      }
-      }
-      
       if(!empty($results)) {
+	      // check if there are existing products in cart -  to handle when there is updates, remove all the carts and add them back later
+	      $get_carts = WC()->cart->get_cart();
+	      if(!empty($get_carts)) {
+		      foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+			      WC()->cart->remove_cart_item( $cart_item_key );
+		      }
+	      }
+        
         foreach ($results as $result) {
 	        $vitals = json_decode($result->metadata);
           $add_to_cart = WC()->cart->add_to_cart($result->product_id, $result->quantity, $result->variation_id, [], ['vitals' => $vitals]);
