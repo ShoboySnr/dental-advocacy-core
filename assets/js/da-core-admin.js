@@ -29,7 +29,6 @@
         const formData = $(this).serialize();
         dental_advocacy_core_admin.hide_loading_style(true);
 
-        formData = formData+ '&da-core-prepare-products-to-cart-submit=true';
         $('#da-core-form-feedback').html('');
 
         $.ajax({
@@ -46,6 +45,34 @@
             // $("#da-core-form-feedback ").html( "<div class='da-core-message da-core-message-error'>Something went wrong.</div>" );
             console.log(error);
         })
+    }
+
+    dental_advocacy_core_admin.submitProductsToUserForm = function(event) {
+        event.preventDefault();
+
+        const formData = $(this).serialize();
+        dental_advocacy_core_admin.hide_loading_style(true);
+
+        $('#da-core-form-feedback').html('');
+
+        $.ajax({
+            url: da_core_admin_ajax_object.ajax_url,
+            type: 'POST',
+            data: formData
+        })
+            .done(function(response) {
+                dental_advocacy_core_admin.hide_loading_style();
+                if(response.hasStep) {
+                    $('.da-core-add-products-to-user-next-step').html(response.message);
+                } else {
+                    $(" #da-core-form-feedback ").html(response.message);
+                }
+            })
+            .fail(function(error) {
+                dental_advocacy_core_admin.hide_loading_style();
+                // $("#da-core-form-feedback ").html( "<div class='da-core-message da-core-message-error'>Something went wrong.</div>" );
+                console.log(error);
+            })
     }
 
     dental_advocacy_core_admin.submitModifyMetaDetailsForm = function(event) {
@@ -193,6 +220,7 @@
                         };
                     },
                     processResults: function (data) {
+                        console.log(data.length);
                         return {
                             results: data
                         };
@@ -225,6 +253,7 @@
             });
             $(document).on('submit', '#dental-advocacy-products-add-to-cart-form', dental_advocacy_core_admin.submitProductsToCartForm);
             $(document).on('submit', '#dental-advocacy-modify-meta-details-form', dental_advocacy_core_admin.submitModifyMetaDetailsForm);
+            $(document).on('submit', '#dental-advocacy-add-products-to-user-form', dental_advocacy_core_admin.submitProductsToUserForm);
             $(document).on('click', 'button.da-core-cancel-meta-details-submit', dental_advocacy_core_admin.cancelModifyMetaDetailsForm);
             $(document).on('click', 'button.da-core-metadata-update-button', dental_advocacy_core_admin.getMetaDataDetailsForm);
             $(document).on('click', 'button.da-core-entry-delete-button', dental_advocacy_core_admin.deleteSpecificMetaDetail);

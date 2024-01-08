@@ -1,6 +1,6 @@
 <?php
 
-namespace DentalAdvocacyCore\Core\WooCommerce\ProductsToCart;
+namespace DentalAdvocacyCore\Core\WooCommerce;
 
 class ProductsToCart {
 	
@@ -29,17 +29,16 @@ class ProductsToCart {
 	  add_action( 'woocommerce_checkout_create_order_line_item', [$this, 'checkout_create_order_line_item'], 10, 4 );
 	  
 	  add_action('wp_ajax_da_core_get_meta_details_form', [$this, 'get_meta_details_form']);
+    
+    add_action( 'woocommerce_order_item_name', [$this, 'add_meta_product_cart_details_to_emails'], 10, 2 );
 	}
   
   public function products_to_cart_action_callback()
   {
-    if(isset($_POST['da-core-prepare-products-to-cart-submit'])) {
+    if(isset($_POST['da_core_add_details_to_product_cart_nonce']) && wp_verify_nonce($_POST['da_core_add_details_to_product_cart_nonce'], 'da-core-add-details-to-product-cart-nonce')) {
 	    global $wpdb;
 	    $error_string = $price = $product_level_stock = $stock_status = $incompatible_product_type = '';
       
-      $product_ids = sanitize_text_field($_POST['product_ids']);
-      $user_names = sanitize_text_field($_POST['user_names']);
-      $quantity = sanitize_text_field($_POST['quantity']);
       $vitals = $_POST['vitals'];
 	
 	    $get_vitals = get_posts([
@@ -131,16 +130,26 @@ class ProductsToCart {
       
       if( empty( $error_string ) ) {
         
+        // check if there is an existing products prepared in cart
+        
         foreach ($product_ids as $product_id) {
 	        $_product = wc_get_product( $product_id );
           foreach ($user_names as $user_id) {
             $user = get_user_by('ID', $user_id);
             $find_prev = $this->get_product_to_cart_detail($user_id, $product_id);
+            $is_existing = $this->get_add_to_carts_details_by_user_id($user_id);
+            $imported_to_cart = 0;
+            if(!empty($is_existing)) {
+              $imported_to_cart = 2;
+	            $insert_sql = "UPDATE {$wpdb->prefix}da_core_products_to_cart_items SET `imported_to_cart` = %s WHERE `user_id` = %s";
+	            $insert_sql = $wpdb->prepare($insert_sql, $imported_to_cart, $user_id );
+	            $wpdb->get_results($insert_sql);
+            }
             
             
             if(empty( $find_prev) ) {
-              $insert_sql = "INSERT INTO {$wpdb->prefix}da_core_products_to_cart_items (`user_id`, `product_id`, `quantity`, `metadata`) VALUES (%s, %s, %s, %s)";
-              $insert_sql = $wpdb->prepare($insert_sql, $user_id, $product_id, $quantity, $vitals );
+              $insert_sql = "INSERT INTO {$wpdb->prefix}da_core_products_to_cart_items (`user_id`, `product_id`, `quantity`, `metadata`, `imported_to_cart`) VALUES (%s, %s, %s, %s, %s)";
+              $insert_sql = $wpdb->prepare($insert_sql, $user_id, $product_id, $quantity, $vitals, $imported_to_cart );
               $wpdb->get_results($insert_sql);
 	
 	            if ($wpdb->last_error) {
@@ -261,13 +270,6 @@ class ProductsToCart {
         'numberposts'   => -1,
         'post_type'     => 'da-core-vitals'
     ]);
-    
-    $users = get_users([
-	    'number'  => -1,
-      'fields'  => ['ID', 'display_name'],
-	    'orderby' => 'display_name',
-	    'order' => 'ASC'
-    ]);
 		?>
 		<div class="wrap" id="dental-advocacy-products-to-cart">
 			<h1 class="wp-heading-inline">Products to Customer Cart</h1>
@@ -283,7 +285,7 @@ class ProductsToCart {
           <form action="" method="post" id="dental-advocacy-products-add-to-cart-form">
             <div class='da-core-form'>
               <div class="">
-                <label for="product_ids">Enter Product ID</label>
+                <label for="product_ids"><?php echo __('Select Products', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN); ?></label>
                 <select name="product_ids[]" id="product_ids" class="da-core-product-ids-select2" multiple required>
                   <option value=""><?php echo __('Find products by ID or Title..', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN); ?></option>
                 </select>
@@ -298,7 +300,6 @@ class ProductsToCart {
                 <label for="quantity">Enter Quantity</label>
                 <input  type='number' value="1" name='quantity' id='quantity' placeholder="<?php echo __('Quantity', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN); ?>" min="1" required/>
               </div>
-              <input  type='hidden' name='action' value='da_core_prepare_products_to_cart' />
 	            <?php
 		            foreach ($vitals as $vital) {
 			            ?>
@@ -312,6 +313,8 @@ class ProductsToCart {
             </div>
             <hr />
             <br />
+            <input  type='hidden' name='action' value='da_core_prepare_products_to_cart' />
+            <?php wp_nonce_field('da-core-add-details-to-product-cart-nonce', 'da_core_add_details_to_product_cart_nonce'); ?>
             <button type='submit' name="da-core-prepare-products-to-cart-submit" class='button da-core-prepare-products-to-cart-submit button-primary'><?php echo __('Add to customer\'s cart', DENTAL_ADVOCACY_CORE_TEXT_DOMAIN); ?></button>
 
             <div id='da-core-form-feedback' class='da-core-form-feedback'></div>
@@ -463,6 +466,30 @@ class ProductsToCart {
     }
   }
   
+  
+  public function add_meta_product_cart_details_to_emails( $product_name, $item ) {
+	  if(isset( $values['vitals'] )) {
+	    $vitals = $values['vitals'];
+	  
+      if(!empty($vitals)) {
+	      $product_name .= '<div style="margin-left: 10px !important;">';
+	      foreach ( $vitals as $key => $vital ) {
+		      $vital_name = $this->get_core_vitals_name($key);
+	        if(!empty($vital_name[0])) {
+	          $product_name .= sprintf(
+		          '<p><strong>%s:</strong> %s</p>',
+		          $vital_name[0]->post_title,
+		          esc_html( $vital )
+	          );
+          }
+	      }
+        $product_name .= '</div>';
+      }
+    }
+	
+	  return $product_name;
+  }
+  
 	/**
 	 *
 	 */
@@ -544,7 +571,7 @@ class ProductsToCart {
                       <?php
                     } else if ($cart_detail->imported_to_cart == 2) {
                       ?>
-                        <span class="da-core-already-in-cart">Cart items changed, will be updated when user logs in</span>
+                        <span class="da-core-already-in-cart">One of the Cart items has changed, cart will be updated when user logs in</span>
                       <?php
                     } else {
 	                    ?>

@@ -2,7 +2,8 @@
 
 namespace DentalAdvocacyCore\Core\Admin;
 
-use DentalAdvocacyCore\Core\WooCommerce\ProductsToCart\ProductsToCart;
+use DentalAdvocacyCore\Core\WooCommerce\ProductsToCart;
+use DentalAdvocacyCore\Core\WooCommerce\ManageUserOrders;
 
 class AdminMenu {
 	
@@ -44,6 +45,16 @@ class AdminMenu {
 		  'manage_options',
 		  'da-core-add-to-cart',
 		  [ProductsToCart::get_instance(), 'admin_menu_add_to_cart_callback']
+	  );
+    
+    // Manage Orders for a User
+	  add_submenu_page(
+		  'dental-advocacy-core',
+		  'Manage User Orders',
+		  'Manage User Orders',
+		  'manage_options',
+		  'da-core-manage-user-orders',
+		  [ManageUserOrders::get_instance(), 'admin_menu_manage_user_orders_callback']
 	  );
     
     // Add settings sub menu

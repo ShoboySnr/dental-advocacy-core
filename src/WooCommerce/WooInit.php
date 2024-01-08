@@ -2,12 +2,11 @@
 
 namespace DentalAdvocacyCore\Core\WooCommerce;
 
-use DentalAdvocacyCore\Core\WooCommerce\ProductsToCart\Init as ProductsInit;
-
 class WooInit {
 	
 	public function __construct() {
-		ProductsInit::get_instance();
+		ProductsToCart::get_instance();
+		ManageUserOrders::get_instance();
 	}
 	
 	public static function get_instance() {
